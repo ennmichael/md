@@ -53,7 +53,7 @@ impl<'a> WordsInLine<'a> {
         let mut layout_line = LayoutLine::new(Vec::new());
         let gaps_between_words = self.words.len() - 1;
         let spaces_per_gap = self.remaining_space / gaps_between_words;
-        let num_extra_spaces = self.remaining_space - spaces_per_gap;
+        let num_extra_spaces = self.remaining_space - gaps_between_words * spaces_per_gap;
         assert!(num_extra_spaces <= gaps_between_words);
 
         let mut extra_spaces = get_unique_random_numbers(num_extra_spaces, 0, gaps_between_words);
@@ -64,25 +64,27 @@ impl<'a> WordsInLine<'a> {
             add_word();
 
             let mut add_whitespace = || {
-                if i != self.words.len() - 1 {
-                    if let Some(&idx) = extra_spaces.last() {
-                        if i == idx {
-                            layout_line
-                                .elements
-                                .push(LayoutElement::Whitespace(spaces_per_gap + 2));
-                            // Above it says +2 because there are some extra spaces left,
-                            // so we're adding them to gaps one-by-one.
-                            // In both arms of the if statement, we add +1 because there must be at
-                            // least one space in each gap.
-                            extra_spaces.pop();
-                            return;
-                        }
-                    }
-
-                    layout_line
-                        .elements
-                        .push(LayoutElement::Whitespace(spaces_per_gap + 1));
+                if i == self.words.len() - 1 {
+                    return;
                 }
+
+                if let Some(&idx) = extra_spaces.last() {
+                    if i == idx {
+                        layout_line
+                            .elements
+                            .push(LayoutElement::Whitespace(spaces_per_gap + 2));
+                        // Above it says +2 because there are some extra spaces left,
+                        // so we're adding them to gaps one-by-one.
+                        // In both arms of the if statement, we add +1 because there must be at
+                        // least one space in each gap.
+                        extra_spaces.pop();
+                        return;
+                    }
+                }
+
+                layout_line
+                    .elements
+                    .push(LayoutElement::Whitespace(spaces_per_gap + 1));
             };
 
             add_whitespace();
@@ -192,190 +194,65 @@ pub fn calculate_layout<'a>(screen_width: usize, words: &[StyledWord<'a>]) -> Ve
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
+
+    pub fn debug_print(layout: &[LayoutLine]) {
+        for line in layout {
+            for layout_element in line.elements.iter() {
+                match layout_element {
+                    LayoutElement::Word(word) => print!("{}", word.text),
+                    LayoutElement::Whitespace(n) => {
+                        for _ in 0..*n {
+                            print!(" ");
+                        }
+                    }
+                }
+            }
+            print!("\n");
+        }
+    }
+
+    const TEXT: &str = "Old software and hardware manuals (when there were such things) go through a lifecycle for me:\n
+references for a couple years, then \"trash books\" taking up space, then, when they are 20+ years old,\n
+they are \"antiques\". I'm happy to still have my Borland TurboPascal/C/Asm manuals.";
 
     #[test]
     fn layout_tests() {
-        struct TestCase {
-            screen_width: usize,
-            words: Vec<StyledWord<'static>>,
-            expected_layout: Vec<LayoutLine<'static>>,
-        }
-
-        use LayoutElement::*;
-
-        let test_cases = vec![
-            TestCase {
-                screen_width: 11,
-                words: vec!["Hello".into(), "world".into()],
-                expected_layout: vec![LayoutLine::new(vec![
-                    Word("Hello".into()),
-                    Whitespace(1),
-                    Word("world".into()),
-                ])],
-            },
-            TestCase {
-                screen_width: 12,
-                words: vec!["Hello".into(), "world".into()],
-                expected_layout: vec![LayoutLine::new(vec![
-                    Word("Hello".into()),
-                    Whitespace(1),
-                    Word("world".into()),
-                    Whitespace(1),
-                ])],
-            },
-            TestCase {
-                screen_width: 15,
-                words: vec!["Hello".into(), "world".into()],
-                expected_layout: vec![LayoutLine::new(vec![
-                    Word("Hello".into()),
-                    Whitespace(1),
-                    Word("world".into()),
-                    Whitespace(4),
-                ])],
-            },
-            TestCase {
-                screen_width: 10,
-                words: vec!["Hello".into(), "dear".into(), "world".into()],
-                expected_layout: vec![
-                    LayoutLine::new(vec![
-                        Word("Hello".into()),
-                        Whitespace(1),
-                        Word("dear".into()),
-                    ]),
-                    LayoutLine::new(vec![Word("world".into()), Whitespace(5)]),
-                ],
-            },
-            TestCase {
-                screen_width: 11,
-                words: vec!["Hello".into(), "dear".into(), "world".into()],
-                expected_layout: vec![
-                    LayoutLine::new(vec![
-                        Word("Hello".into()),
-                        Whitespace(2),
-                        Word("dear".into()),
-                    ]),
-                    LayoutLine::new(vec![Word("world".into()), Whitespace(6)]),
-                ],
-            },
-            TestCase {
-                screen_width: 12,
-                words: vec!["Hello".into(), "dear".into(), "world".into()],
-                expected_layout: vec![
-                    LayoutLine::new(vec![
-                        Word("Hello".into()),
-                        Whitespace(3),
-                        Word("dear".into()),
-                    ]),
-                    LayoutLine::new(vec![Word("world".into()), Whitespace(7)]),
-                ],
-            },
-            TestCase {
-                screen_width: 11,
-                words: vec![
-                    "Hello".into(),
-                    "world".into(),
-                    "Hello".into(),
-                    "world".into(),
-                ],
-                expected_layout: vec![
-                    LayoutLine::new(vec![
-                        Word("Hello".into()),
-                        Whitespace(1),
-                        Word("world".into()),
-                    ]),
-                    LayoutLine::new(vec![
-                        Word("Hello".into()),
-                        Whitespace(1),
-                        Word("world".into()),
-                    ]),
-                ],
-            },
-            TestCase {
-                screen_width: 11,
-                words: vec!["Hello".into(), "world".into(), "xyz".into()],
-                expected_layout: vec![
-                    LayoutLine::new(vec![
-                        Word("Hello".into()),
-                        Whitespace(1),
-                        Word("world".into()),
-                    ]),
-                    LayoutLine::new(vec![Word("xyz".into()), Whitespace(8)]),
-                ],
-            },
-            TestCase {
-                screen_width: 10,
-                words: vec!["Hello".into(), "world".into()],
-                expected_layout: vec![
-                    LayoutLine::new(vec![Word("Hello".into()), Whitespace(5)]),
-                    LayoutLine::new(vec![Word("world".into()), Whitespace(5)]),
-                ],
-            },
-            /*
-            TestCase {
-                screen_width: 5,
-                words: vec!["verylongword".into()],
-                expected_layout: vec![
-                    LayoutLine(vec![Word("veryl".into())]),
-                    LayoutLine(vec![Word("ongwo".into())]),
-                    LayoutLine(vec![Word("rd".into()), Whitespace(3)]),
-                ],
-            },
-            TestCase {
-                screen_width: 5,
-                words: vec!["verylongword and some more".into()],
-                expected_layout: vec![
-                    LayoutLine(vec![Word("veryl".into())]),
-                    LayoutLine(vec![Word("ongwo".into())]),
-                    LayoutLine(vec![Word("rd".into()), Whitespace(3)]),
-                    LayoutLine(vec![Word("and".into()), Whitespace(2)]),
-                    LayoutLine(vec![Word("some".into()), Whitespace(1)]),
-                    LayoutLine(vec![Word("more".into()), Whitespace(1)]),
-                ],
-            },
-            TestCase {
-                screen_width: 5,
-                words: vec!["verylongword and some more.".into()],
-                expected_layout: vec![
-                    LayoutLine(vec![Word("veryl".into())]),
-                    LayoutLine(vec![Word("ongwo".into())]),
-                    LayoutLine(vec![Word("rd".into()), Whitespace(3)]),
-                    LayoutLine(vec![Word("and".into()), Whitespace(2)]),
-                    LayoutLine(vec![Word("some".into()), Whitespace(1)]),
-                    LayoutLine(vec![Word("more.".into())]),
-                ],
-            },
-            TestCase {
-                screen_width: 10,
-                words: vec!["verylongword and so on".into()],
-                expected_layout: vec![
-                    LayoutLine(vec![Word("verylongwo".into())]),
-                    LayoutLine(vec![
-                        Word("rd".into()),
-                        Whitespace(2),
-                        Word("and".into()),
-                        Whitespace(1),
-                        Word("so".into()),
-                    ]),
-                    LayoutLine(vec![Word("on".into()), Whitespace(8)]),
-                ],
-            },
-            */
-        ];
-
-        for (
-            i,
-            TestCase {
-                screen_width,
-                words,
-                expected_layout,
-            },
-        ) in test_cases.into_iter().enumerate()
-        {
-            println!("{}", i);
+        for screen_width in (20..=120).rev() {
+            let words: Vec<StyledWord> = TEXT
+                .split_ascii_whitespace()
+                .into_iter()
+                .map(|w| w.into())
+                .collect();
             let layout = calculate_layout(screen_width, &words);
-            assert_eq!(layout, expected_layout)
+            for line in layout.iter() {
+                let mut sum = 0;
+
+                for layout_element in line.elements.iter() {
+                    match layout_element {
+                        LayoutElement::Word(w) => sum += w.text.len(),
+                        &LayoutElement::Whitespace(n) => {
+                            sum += n;
+                            if n == 0 {
+                                debug_print(&layout);
+                                panic!(format!(
+                                    "Found a 0-length whitespace, see debug output (screen width {})",
+                                    screen_width
+                                ));
+                            }
+                        }
+                    }
+                }
+
+                if sum != screen_width {
+                    debug_print(&layout);
+                    panic!(format!(
+                        "Line width not equal to screen width ({}), see debug output",
+                        screen_width
+                    ));
+                }
+            }
         }
     }
 }
