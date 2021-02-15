@@ -20,19 +20,39 @@ impl<'a> From<&'a str> for StyledWord<'a> {
     }
 }
 
+pub enum HeadingSize {
+    Small,
+    Medium,
+    Large,
+}
+
+pub struct Heading<'a> {
+    words: Vec<StyledWord<'a>>,
+    size: HeadingSize,
+}
+
 pub enum MarkdownElement<'a> {
+    Heading(Heading<'a>),
     Paragraph(Vec<StyledWord<'a>>),
 }
 
 pub type Result<T> = std::result::Result<T, ()>;
 
-pub fn parse(text: &str) -> Result<Vec<MarkdownElement>> {
-    Ok(vec![MarkdownElement::Paragraph(
-        text.split_ascii_whitespace()
-            .map(|text| StyledWord {
-                text,
-                style: Default::default(),
-            })
-            .collect(),
-    )])
+pub struct Markdown<'a> {
+    pub elements: Vec<MarkdownElement<'a>>,
+}
+
+impl<'a> Markdown<'a> {
+    pub fn parse(text: &'a str) -> Result<Self> {
+        Ok(Self {
+            elements: vec![MarkdownElement::Paragraph(
+                text.split_ascii_whitespace()
+                    .map(|text| StyledWord {
+                        text,
+                        style: Default::default(),
+                    })
+                    .collect(),
+            )],
+        })
+    }
 }

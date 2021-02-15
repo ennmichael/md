@@ -1,7 +1,9 @@
 use crossterm::{
     cursor::{Hide, MoveTo},
     event::{self, Event, KeyCode, KeyModifiers},
-    style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
+    style::{
+        Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor,
+    },
     terminal, ErrorKind, QueueableCommand,
 };
 use std::io::{self, Stdout, Write};
@@ -49,6 +51,8 @@ pub struct AnsiColor(pub u8);
 pub struct Style {
     pub foregound: Option<AnsiColor>,
     pub background: Option<AnsiColor>,
+    pub bold: bool,
+    pub italic: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,24 +77,25 @@ pub enum TerminalEvent {
     Resize { width: u32, height: u32 },
 }
 
-pub struct CrosstermTerminal {
+pub struct TerminalCanvas {
     stdout: Stdout,
 }
 
-impl CrosstermTerminal {
-    pub fn new() -> TerminalResult<Self> {
-        terminal::enable_raw_mode()?;
-        let mut stdout = io::stdout();
-        stdout.queue(Hide)?.flush()?;
-        Ok(Self { stdout })
-    }
-
+impl TerminalCanvas {
     pub fn dimensions(&self) -> TerminalResult<Dimensions> {
         let size = terminal::size()?;
         Ok(Dimensions {
-            width: size.0 as u32,
-            height: size.1 as u32,
+            width: size.0 as usize,
+            height: size.1 as usize,
         })
+    }
+
+    pub fn width(&self) -> TerminalResult<usize> {
+        Ok(self.dimensions()?.width)
+    }
+
+    pub fn height(&self) -> TerminalResult<usize> {
+        Ok(self.dimensions()?.height)
     }
 
     pub fn clear(&mut self) -> TerminalResult<()> {
@@ -108,6 +113,17 @@ impl CrosstermTerminal {
             self.stdout
                 .queue(SetBackgroundColor(Color::AnsiValue(bg.0)))?;
         }
+        if style.bold {
+            self.stdout.queue(SetAttribute(Attribute::Bold))?;
+        }
+        if style.italic {
+            self.stdout.queue(SetAttribute(Attribute::Italic))?;
+        }
+        Ok(())
+    }
+
+    pub fn print_str(&mut self, s: &str) -> TerminalResult<()> {
+        self.stdout.queue(Print(s))?;
         Ok(())
     }
 
@@ -122,7 +138,11 @@ impl CrosstermTerminal {
         self.stdout.flush()?;
         Ok(())
     }
+}
 
+pub struct TerminalEvents;
+
+impl TerminalEvents {
     pub fn next_event(&self) -> TerminalResult<TerminalEvent> {
         loop {
             match event::read()? {
@@ -147,8 +167,22 @@ impl CrosstermTerminal {
     }
 }
 
-impl Drop for CrosstermTerminal {
-    fn drop(&mut self) {
-        terminal::disable_raw_mode().unwrap();
-    }
+pub fn start_in_raw_mode() -> TerminalResult<(TerminalCanvas, TerminalEvents)> {
+    terminal::enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    stdout.queue(Hide)?.flush()?;
+    start()
+}
+
+pub fn start() -> TerminalResult<(TerminalCanvas, TerminalEvents)> {
+    Ok((
+        TerminalCanvas {
+            stdout: io::stdout(),
+        },
+        TerminalEvents,
+    ))
+}
+
+pub fn exit() {
+    terminal::disable_raw_mode().unwrap();
 }

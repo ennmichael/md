@@ -6,6 +6,6 @@ pub struct Position {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Dimensions {
-    pub width: u32,
-    pub height: u32,
+    pub width: usize,
+    pub height: usize,
 }
